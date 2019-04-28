@@ -1,19 +1,56 @@
+var mysql = require('mysql');
 var express = require('express');
-var http = require('http');
-var fs = require('fs');
+var session = require('express-session');
+var bodyParser = require('body-parser');
+var path = require('path');
+
+var connection = mysql.createConnection({
+	host     : 'localhost',
+	user     : 'root',
+	password : '',
+	database : 'sisked'
+});
+
 var app = express();
-var path = require("path");
+app.use(session({
+	secret: 'secret',
+	resave: true,
+	saveUninitialized: true
+}));
+app.use(bodyParser.urlencoded({extended : true}));
+app.use(bodyParser.json());
 
-var server = http.createServer(function (req, res) {
-require('fs').createReadStream(require('path').join(__dirname, req.url)).on('error',function(){ // static files!
-    res.writeHead(200, {'Content-Type': 'text/html'});
-    res.end(
-      require('fs')
-        .readFileSync(require('path')
-        .join(__dirname, 'test.html') // or default to index
-      ));
-    }).pipe(res); // stream
-  });
+app.get('/', function(request, response) {
+	response.sendFile(path.join(__dirname + '/login.html'));
+});
 
-server.listen(5000);
-console.log('Server running on 5000...');
+app.post('/auth', function(request, response) {
+	var nrp = request.body.nrp;
+	var password = request.body.password;
+	if (nrp && password) {
+		connection.query('SELECT * FROM siswa WHERE nrp = ? AND password = ?', [nrp, password], function(error, results, fields) {
+			if (results.length > 0) {
+				request.session.loggedin = true;
+				request.session.nrp = nrp;
+				response.redirect('/home');
+			} else {
+				response.send('NRP/Password Salah');
+			}			
+			response.end();
+		});
+	} else {
+		response.send('Masukan NRP dan Password!');
+		response.end();
+	}
+});
+
+app.get('/home', function(request, response) {
+	if (request.session.loggedin) {
+		response.send('Selamat Datang, ' + request.session.nrp + '!');
+	} else {
+		response.send('Silahkan Login Dulu!');
+	}
+	response.end();
+});
+console.log('jalan')
+app.listen(3000);
